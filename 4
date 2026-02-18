@@ -1,0 +1,164 @@
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+-- 1. Configuration
+local ChainSpamActive = true 
+local WalkSpeedValue = 32 
+local spellIDs = {"b764fcbc-dbc9-495a-88f9-dd34f1a0f1d7"} 
+local discordLink = "discord.gg/zPCPJYjEte"
+
+-- TWEEN CONFIGURATION
+local TravelSpeed = 2.2 
+local PostTeleportFreeze = 0.1 
+
+-- 2. XP Bar & Watermark Logic
+task.spawn(function()
+    -- Update XP Bar to Discord Link
+    local xpLabel = playerGui:WaitForChild("HUD"):WaitForChild("Main"):WaitForChild("PlayerStatus"):WaitForChild("PlayerStatus"):WaitForChild("XP")
+    
+    local function applyLink()
+        xpLabel.Text = discordLink
+    end
+
+    applyLink()
+    -- Prevents the game from changing it back to numbers
+    xpLabel:GetPropertyChangedSignal("Text"):Connect(applyLink)
+
+    -- Watermark Label
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "VersionDisplay"
+    screenGui.ResetOnSpawn = false 
+    screenGui.Parent = playerGui
+
+    local versionLabel = Instance.new("TextLabel")
+    versionLabel.Name = "StatusLabel"
+    versionLabel.Size = UDim2.new(0, 340, 0, 35) 
+    versionLabel.Position = UDim2.new(0.02, 0, 0.98, -10) 
+    versionLabel.AnchorPoint = Vector2.new(0, 1) 
+    versionLabel.BackgroundColor3 = Color3.fromRGB(15, 15, 15) 
+    versionLabel.BackgroundTransparency = 0.3 
+    versionLabel.Text = "Illusion V0.1 By TotallyNotHimLOL - ACTIVE"
+    versionLabel.TextColor3 = Color3.fromRGB(0, 255, 127) 
+    versionLabel.TextSize = 16 
+    versionLabel.Font = Enum.Font.SourceSans 
+    versionLabel.Parent = screenGui 
+
+    local labelCorner = Instance.new("UICorner")
+    labelCorner.CornerRadius = UDim.new(0, 6) 
+    labelCorner.Parent = versionLabel
+end)
+
+-- 3. WalkSpeed Logic
+task.spawn(function()
+    while true do
+        local character = player.Character or player.CharacterAdded:Wait()
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        if humanoid and humanoid.WalkSpeed ~= WalkSpeedValue then
+            humanoid.WalkSpeed = WalkSpeedValue
+        end
+        task.wait(1) 
+    end
+end)
+
+-- 4. Ability Spam
+task.spawn(function()
+    while task.wait(0) do 
+        if ChainSpamActive then
+            pcall(function()
+                local tool = player.Backpack:FindFirstChild("Chain Lightning") or (player.Character and player.Character:FindFirstChild("Chain Lightning"))
+                if tool and tool:FindFirstChild("abilityEvent") then
+                    for _, id in ipairs(spellIDs) do
+                        tool.abilityEvent:FireServer(id)
+                    end
+                end
+            end)
+        end
+    end
+end)
+
+-- 5. Auto-Start Dungeon
+task.spawn(function()
+    local remotes = ReplicatedStorage:WaitForChild("remotes", 15)
+    if remotes then
+        local startRemote = remotes:WaitForChild("changeStartValue", 15)
+        if startRemote then
+            task.wait(1) 
+            startRemote:FireServer()
+        end
+    end
+end)
+
+-- 6. Auto-Vote Bonus & Auto-Retry
+task.spawn(function()
+    local dataRemote = ReplicatedStorage:WaitForChild("dataRemoteEvent", 15)
+    if not dataRemote then return end
+
+    local bonusArgs = {{{["\003"] = "vote", vote = "bonus"}, "-"}}
+    local retryArgs = {{{["\003"] = "vote", vote = true}, "-"}}
+
+    while task.wait(2.5) do
+        pcall(function()
+            dataRemote:FireServer(unpack(bonusArgs))
+            task.wait(0)
+            dataRemote:FireServer(unpack(retryArgs))
+        end)
+    end
+end)
+
+-- 7. Movement Function
+local function fastSafeTween(targetPart)
+    local character = player.Character or player.CharacterAdded:Wait()
+    local rootPart = character:WaitForChild("HumanoidRootPart")
+    local humanoid = character:WaitForChild("Humanoid")
+    
+    humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+    
+    local targetCFrame = targetPart.CFrame * CFrame.new(0, 3, 0)
+    local tweenInfo = TweenInfo.new(TravelSpeed, Enum.EasingStyle.Sine, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(rootPart, tweenInfo, {CFrame = targetCFrame})
+    
+    tween:Play()
+    tween.Completed:Wait()
+    
+    rootPart.Anchored = true
+    rootPart.Velocity = Vector3.new(0, 0, 0)
+    rootPart.CFrame = targetCFrame 
+    
+    task.wait(PostTeleportFreeze)
+    
+    rootPart.Anchored = false
+    humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+end
+
+-- 8. Room Logic
+local rooms = {
+    {room = "room2", index = 5},
+    {room = "room3", index = 5},
+    {room = "room4", index = 28},
+    {room = "room5", index = 5},
+    {room = "room6", index = 29},
+    {room = "room7", index = 45},
+    {room = "room8", index = 2}
+}
+
+for i, data in ipairs(rooms) do
+    task.spawn(function()
+        local done = false
+        while not done do
+            pcall(function()
+                local target = workspace.dungeon[data.room].enemyFolder:GetChildren()[data.index]
+                if target then
+                    local enemyRoot = target:FindFirstChild("HumanoidRootPart") or target.PrimaryPart
+                    if enemyRoot then
+                        fastSafeTween(enemyRoot)
+                        done = true
+                    end
+                end
+            end)
+            task.wait(1)
+        end
+    end)
+end
